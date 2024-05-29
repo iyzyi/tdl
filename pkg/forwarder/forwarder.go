@@ -2,6 +2,7 @@ package forwarder
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -33,9 +34,10 @@ type Options struct {
 }
 
 type Forwarder struct {
-	sent map[tuple]struct{} // used to filter grouped messages which are already sent
-	rand *rand.Rand
-	opts Options
+	sent   map[tuple]struct{} // used to filter grouped messages which are already sent
+	rand   *rand.Rand
+	opts   Options
+	record *Recorder
 }
 
 type tuple struct {
@@ -53,7 +55,22 @@ func New(opts Options) *Forwarder {
 
 func (f *Forwarder) Forward(ctx context.Context) error {
 	for f.opts.Iter.Next(ctx) {
+		if f.record == nil {
+			var err error
+			f.record, err = NewRecorder(f.opts.Iter.Value().From().ID())
+			if err != nil {
+				return err
+			}
+		}
+
 		elem := f.opts.Iter.Value()
+
+		msgID := elem.Msg().ID
+		if f.record.IsForwarded(msgID) {
+			fmt.Printf("Skip MsgID %v as it has already been forwarded\n", msgID)
+			continue
+		}
+
 		if _, ok := f.sent[f.tuple(elem.From(), elem.Msg())]; ok {
 			// skip grouped messages
 			continue
@@ -93,6 +110,17 @@ func (f *Forwarder) forwardMessage(ctx context.Context, elem Elem, grouped ...*t
 		for _, m := range grouped {
 			f.sent[f.tuple(elem.From(), m)] = struct{}{}
 		}
+
+		if rerr == nil {
+			if len(grouped) == 0 {
+				f.record.Forwarded(elem.Msg().ID)
+			} else {
+				for _, m := range grouped {
+					f.record.Forwarded(m.ID)
+				}
+			}
+		}
+
 		f.opts.Progress.OnDone(elem, rerr)
 	}()
 
