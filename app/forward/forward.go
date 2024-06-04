@@ -3,6 +3,7 @@ package forward
 import (
 	"context"
 	"fmt"
+	"github.com/iyear/tdl/pkg/iyzyi"
 	"os"
 	"reflect"
 	"strings"
@@ -62,12 +63,31 @@ func Run(ctx context.Context, c *telegram.Client, kvd kv.KV, opts Options) (rerr
 
 	ctx = tctx.WithPool(ctx, pool)
 
+	record, err := iyzyi.NewRecorder()
+	if err != nil {
+		return err
+	}
+
 	dialogs, err := collectDialogs(ctx, opts.From, opts.Desc)
 	if err != nil {
 		return errors.Wrap(err, "collect dialogs")
 	}
 
 	manager := peers.Options{Storage: storage.NewPeers(kvd)}.Build(pool.Default(ctx))
+
+	skip, err := iyzyi.RemoveRecordedMessages("forward", ctx, manager, record, &dialogs)
+	if err != nil {
+		return err
+	}
+
+	if len(dialogs) == 0 {
+		if skip {
+			fmt.Printf("There are no messages to forward after skipping recorded messages.\n")
+			return nil
+		} else {
+			return errors.Errorf("you must specify at least one message")
+		}
+	}
 
 	to, err := resolveDest(ctx, manager, opts.To)
 	if err != nil {
@@ -96,7 +116,7 @@ func Run(ctx context.Context, c *telegram.Client, kvd kv.KV, opts Options) (rerr
 			dryRun:  opts.DryRun,
 			grouped: !opts.Single,
 			delay:   viper.GetDuration(consts.FlagDelay),
-		}),
+		}, record),
 		Progress: newProgress(fwProgress),
 		PartSize: viper.GetInt(consts.FlagPartSize),
 		Threads:  viper.GetInt(consts.FlagThreads),

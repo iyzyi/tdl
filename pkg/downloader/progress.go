@@ -9,7 +9,7 @@ import (
 type Progress interface {
 	OnAdd(elem Elem)
 	OnDownload(elem Elem, state ProgressState)
-	OnDone(elem Elem, err error)
+	OnDone(elem Elem, err error, dirName string)
 	// TODO: OnLog to log something that is not an error but should be sent to the user
 }
 

@@ -36,3 +36,7 @@ func (i *iterElem) Name() string { return i.file.Name }
 func (i *iterElem) Size() int64 { return i.file.Size }
 
 func (i *iterElem) DC() int { return i.file.DC }
+
+func (i *iterElem) From() peers.Peer { return i.from }
+
+func (i *iterElem) Msg() *tg.Message { return i.fromMsg }

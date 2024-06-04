@@ -93,6 +93,17 @@ func (f *Forwarder) forwardMessage(ctx context.Context, elem Elem, grouped ...*t
 		for _, m := range grouped {
 			f.sent[f.tuple(elem.From(), m)] = struct{}{}
 		}
+
+		if rerr == nil {
+			if len(grouped) == 0 {
+				f.opts.Iter.Record().Recorded("forward", elem.From().ID(), elem.Msg().ID)
+			} else {
+				for _, m := range grouped {
+					f.opts.Iter.Record().Recorded("forward", elem.From().ID(), m.ID)
+				}
+			}
+		}
+
 		f.opts.Progress.OnDone(elem, rerr)
 	}()
 

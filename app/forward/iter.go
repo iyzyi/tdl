@@ -2,6 +2,7 @@ package forward
 
 import (
 	"context"
+	"github.com/iyear/tdl/pkg/iyzyi"
 	"strings"
 	"time"
 
@@ -39,6 +40,8 @@ type iter struct {
 	i, j int
 	elem forwarder.Elem
 	err  error
+
+	record *iyzyi.Recorder
 }
 
 type env struct {
@@ -71,7 +74,7 @@ type dest struct {
 	Thread int
 }
 
-func newIter(opts iterOptions) *iter {
+func newIter(opts iterOptions, record *iyzyi.Recorder) *iter {
 	return &iter{
 		opts: opts,
 
@@ -79,6 +82,8 @@ func newIter(opts iterOptions) *iter {
 		j:    0,
 		elem: nil,
 		err:  nil,
+
+		record: record,
 	}
 }
 
@@ -213,4 +218,8 @@ func (i *iter) Value() forwarder.Elem {
 
 func (i *iter) Err() error {
 	return i.err
+}
+
+func (i *iter) Record() *iyzyi.Recorder {
+	return i.record
 }

@@ -75,19 +75,20 @@ func Run(ctx context.Context, c *telegram.Client, kvd kv.KV, opts Options) (rerr
 
 	manager := peers.Options{Storage: storage.NewPeers(kvd)}.Build(pool.Default(ctx))
 
-	it, err := newIter(pool, manager, dialogs, opts, viper.GetDuration(consts.FlagDelay))
-	if err != nil {
+	it, err := newIter(ctx, pool, manager, dialogs, opts, viper.GetDuration(consts.FlagDelay))
+	if err != nil || it == nil {
 		return err
 	}
 
-	if !opts.Restart {
-		// resume download and ask user to continue
-		if err = resume(ctx, kvd, it, !opts.Continue); err != nil {
-			return err
-		}
-	} else {
-		color.Yellow("Restart download by 'restart' flag")
-	}
+	// Disable breakpoint resume of the official download feature.
+	//if !opts.Restart {
+	//	// resume download and ask user to continue
+	//	if err = resume(ctx, kvd, it, !opts.Continue); err != nil {
+	//		return err
+	//	}
+	//} else {
+	//	color.Yellow("Restart download by 'restart' flag")
+	//}
 
 	defer func() { // save progress
 		if rerr != nil { // download is interrupted

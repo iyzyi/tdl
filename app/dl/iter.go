@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"github.com/iyear/tdl/pkg/iyzyi"
 	"os"
 	"path/filepath"
 	"sort"
@@ -53,11 +54,18 @@ type iter struct {
 	i, j        int
 	elem        downloader.Elem
 	err         error
+
+	record *iyzyi.Recorder
 }
 
-func newIter(pool dcpool.Pool, manager *peers.Manager, dialog [][]*tmessage.Dialog,
+func newIter(ctx context.Context, pool dcpool.Pool, manager *peers.Manager, dialog [][]*tmessage.Dialog,
 	opts Options, delay time.Duration,
 ) (*iter, error) {
+	record, err := iyzyi.NewRecorder()
+	if err != nil {
+		return nil, err
+	}
+
 	tpl, err := template.New("dl").
 		Funcs(tplfunc.FuncMap(tplfunc.All...)).
 		Parse(opts.Template)
@@ -66,9 +74,20 @@ func newIter(pool dcpool.Pool, manager *peers.Manager, dialog [][]*tmessage.Dial
 	}
 
 	dialogs := flatDialogs(dialog)
+
+	skip, err := iyzyi.RemoveRecordedMessages("download", ctx, manager, record, &dialogs)
+	if err != nil {
+		return nil, err
+	}
+
 	// if msgs is empty, return error to avoid range out of index
 	if len(dialogs) == 0 {
-		return nil, errors.Errorf("you must specify at least one message")
+		if skip {
+			fmt.Printf("There are no messages to download after skipping recorded messages.\n")
+			return nil, nil
+		} else {
+			return nil, errors.Errorf("you must specify at least one message")
+		}
 	}
 
 	// include and exclude
@@ -96,6 +115,8 @@ func newIter(pool dcpool.Pool, manager *peers.Manager, dialog [][]*tmessage.Dial
 		j:           0,
 		elem:        nil,
 		err:         nil,
+
+		record: record,
 	}, nil
 }
 
@@ -232,6 +253,10 @@ func (i *iter) Value() downloader.Elem {
 
 func (i *iter) Err() error {
 	return i.err
+}
+
+func (i *iter) Record() *iyzyi.Recorder {
+	return i.record
 }
 
 func (i *iter) SetFinished(finished map[int]struct{}) {

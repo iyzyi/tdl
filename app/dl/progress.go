@@ -51,7 +51,7 @@ func (p *progress) OnDownload(elem downloader.Elem, state downloader.ProgressSta
 	t.SetValue(state.Downloaded)
 }
 
-func (p *progress) OnDone(elem downloader.Elem, err error) {
+func (p *progress) OnDone(elem downloader.Elem, err error, dirName string) {
 	e := elem.(*iterElem)
 
 	tracker, ok := p.trackers.Load(e.id)
@@ -75,13 +75,13 @@ func (p *progress) OnDone(elem downloader.Elem, err error) {
 
 	p.it.Finish(e.id)
 
-	if err := p.donePost(e); err != nil {
+	if err := p.donePost(e, dirName); err != nil {
 		p.fail(t, elem, errors.Wrap(err, "post file"))
 		return
 	}
 }
 
-func (p *progress) donePost(elem *iterElem) error {
+func (p *progress) donePost(elem *iterElem, dirName string) (err error) {
 	newfile := strings.TrimSuffix(filepath.Base(elem.to.Name()), tempExt)
 
 	if p.opts.RewriteExt {
@@ -95,7 +95,33 @@ func (p *progress) donePost(elem *iterElem) error {
 		}
 	}
 
-	if err := os.Rename(elem.to.Name(), filepath.Join(filepath.Dir(elem.to.Name()), newfile)); err != nil {
+	// create message dir
+	subDirPath := fmt.Sprintf("%v/%v/%v", elem.From().ID(), "original", dirName)
+	dirPath := filepath.Join(filepath.Dir(elem.to.Name()), subDirPath)
+	err = os.MkdirAll(dirPath, os.ModePerm)
+	if err != nil {
+		fmt.Printf("Failed to create %v, error: %v\n", dirPath, err)
+		return
+	}
+
+	// save message text
+	text := elem.Msg().GetMessage()
+	if text != "" {
+		textPath := filepath.Join(dirPath, "info.txt")
+		var textFile *os.File
+		textFile, err = os.OpenFile(textPath, os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			fmt.Printf("Failed to open %v, error: %v\n", textPath, err)
+			return
+		}
+		_, err = textFile.WriteString(text)
+		if err != nil {
+			fmt.Printf("Failed to write to the record file, error: %v", err)
+		}
+	}
+
+	// rename downloaded file
+	if err := os.Rename(elem.to.Name(), filepath.Join(dirPath, newfile)); err != nil {
 		return errors.Wrap(err, "rename file")
 	}
 
